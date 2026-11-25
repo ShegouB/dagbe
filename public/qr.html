@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dagbé — ouvrir sur téléphone</title>
+<style>
+body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#0f3d28;color:#fff;font-family:ui-rounded,system-ui,sans-serif;text-align:center;padding:24px}
+.c{max-width:420px}img.l{border-radius:20px}h1{margin:12px 0 4px;font-size:2rem}p{color:rgba(255,255,255,.8);line-height:1.5}
+#qr{background:#fff;padding:14px;border-radius:20px;width:280px;height:280px;margin:18px auto}#qr img{width:100%;height:100%}
+code{display:block;background:rgba(255,255,255,.12);padding:10px 14px;border-radius:12px;word-break:break-all;color:#f3c04a;font-weight:700}
+</style></head><body><div class="c">
+<img class="l" src="/favicon.svg" width="72" height="72" alt=""><h1>Dagbé</h1>
+<p>Scannez avec l'appareil photo de votre téléphone pour ouvrir l'application, puis installez-la.</p>
+<div id="qr"></div><code id="url"></code>
+<p style="font-size:.85rem">Le code est généré par un service en ligne ; sans connexion, saisissez l'adresse ci-dessus.</p>
+</div>
+<script>
+const u=location.origin+"/";document.getElementById("url").textContent=u;
+const i=new Image();i.alt="QR code";i.src="https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=0&data="+encodeURIComponent(u);
+document.getElementById("qr").append(i);
+</script></body></html>

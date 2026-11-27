@@ -1,5 +1,5 @@
 /* Dagbé — service worker : l'application s'ouvre même sans réseau ; les appels /api ne sont jamais mis en cache. */
-const VERSION = "dagbe-v6";
+const VERSION = "dagbe-v7";
 const SHELL = ["/", "/style.css", "/app.js", "/manifest.json", "/favicon.svg", "/epi.svg",
                "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
 

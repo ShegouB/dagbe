@@ -94,6 +94,8 @@ Réglages optionnels (variables d'environnement) : `TTS_MODELS`, `TTS_VOICE` (ex
 - Un prix de plus de 90 jours (par rapport au plus récent du produit) n'est pas proposé comme alternative.
 - Produits reconnus : synonymes français dans `agriprix/core.py` (`SYNONYMS`) ; à compléter avec la liste réelle.
 
+Sécurité : ne jamais mettre les clés dans le code ni sur GitHub ; révoquer toute clé déjà exposée.
+
 ## Noms de produits en français
 
 Les noms HDX (anglais) sont traduits par `core.label()`. Pour lister ceux qui ne le sont pas encore

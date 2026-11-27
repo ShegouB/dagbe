@@ -210,8 +210,13 @@ const PICTOS = {
   "arachide": sv('<path d="M22 10c8-4 16 1 14 9-1 5 4 8 7 12 6 8 2 22-9 22-10 0-13-10-8-18 3-5-2-8-4-12-2-4-2-9 0-13z" fill="#d1a15f" transform="rotate(20 32 32)"/><g fill="#a97b3d" opacity=".7"><circle cx="30" cy="22" r="1.5"/><circle cx="38" cy="30" r="1.5"/><circle cx="33" cy="42" r="1.5"/><circle cx="42" cy="46" r="1.5"/></g>'),
   "_sac": sv('<path d="M22 14c-2 8-8 14-8 26 0 11 8 18 18 18s18-7 18-18c0-12-6-18-8-26z" fill="#cda766"/><path d="M22 14h20l-2 6H24z" fill="#a98445"/><path d="M24 20q8 3 16 0" stroke="#8c6a31" stroke-width="2.4" fill="none" stroke-linecap="round"/>'),
 };
+const PHOTOS = { "haricot vert": "haricot-vert", "haricot": "haricot", "maïs": "mais", "tomate": "tomate", "gari": "gari", "igname": "igname", "riz": "riz" };
+const CLES_PHOTOS = Object.keys(PHOTOS).sort((x, y) => y.length - x.length);
 function picto(nom) {
   const n = norm(nom || "");
+  if (!n.includes("farine")) {
+    for (const k of CLES_PHOTOS) if (n.includes(norm(k))) return '<img src="/produits/' + PHOTOS[k] + '.jpg" alt="" width="64" height="64" decoding="async">';
+  }
   for (const k of Object.keys(PICTOS)) if (k !== "_sac" && n.includes(norm(k))) return PICTOS[k];
   return PICTOS._sac;
 }

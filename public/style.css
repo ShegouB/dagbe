@@ -274,3 +274,9 @@ label.radio input:focus-visible+span{outline:3px solid var(--mais);outline-offse
 .puce b{font-size:1.02rem}
 .app[data-vue="question"] .puces{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .app[data-vue="question"] .puce b{white-space:normal;font-size:1rem}
+
+/* photos de produits */
+.tuile img{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none}
+.picto img{width:100%;height:100%;border-radius:16px;object-fit:cover}
+.picto{overflow:hidden}
+.choix button img{width:42px;height:42px;border-radius:12px;object-fit:cover}

@@ -475,8 +475,17 @@ function remplirContribution() {
     b.addEventListener("click", () => { sp.value = o.value; majTuilesContrib(); });
     box.append(b);
   }
-  sp.addEventListener("change", majTuilesContrib); majTuilesContrib();
+  for (const [sel, txt] of [[sp, "Autre produit…"], [sz, "Autre localité…"]]) {
+    if (![...sel.options].some((o) => o.value === "__autre__")) sel.append(new Option(txt, "__autre__"));
+  }
+  sp.addEventListener("change", majTuilesContrib); majTuilesContrib(); majLibres();
 }
+function majLibres() {
+  const p = $("c-produit").value === "__autre__", z = $("c-zone").value === "__autre__";
+  $("c-produit-libre").hidden = !p; $("c-zone-libre").hidden = !z; $("c-aide-libre").hidden = !(p || z);
+}
+$("c-produit").addEventListener("change", majLibres);
+$("c-zone").addEventListener("change", majLibres);
 function majTuilesContrib() {
   for (const b of $("c-tuiles").children) b.setAttribute("aria-pressed", String(b.dataset.val === $("c-produit").value));
 }
@@ -489,14 +498,17 @@ function retour(msg, erreur) { const r = $("c-retour"); r.hidden = false; r.text
 $("form-contrib").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const produit = $("c-produit").value, zone = $("c-zone").value, prix = $("c-prix").value.trim();
-  if (!produit || !zone || !prix) return retour("Choisissez le produit, le marché et indiquez le prix.", true);
+  const produitLibre = $("c-produit-libre").value.trim(), zoneLibre = $("c-zone-libre").value.trim();
+  if (!produit || !zone || !prix || (produit === "__autre__" && !produitLibre) || (zone === "__autre__" && !zoneLibre))
+    return retour("Choisissez le produit, le marché et indiquez le prix.", true);
   const bt = $("c-envoyer"); bt.disabled = true;
   try {
     const rep = await fetch("/api/contribuer", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ produit, zone, prix, type: document.querySelector("input[name=c-type]:checked").value, device: deviceId() }) });
+      body: JSON.stringify({ produit: produit === "__autre__" ? "" : produit, zone: zone === "__autre__" ? "" : zone,
+        produit_libre: produit === "__autre__" ? produitLibre : "", zone_libre: zone === "__autre__" ? zoneLibre : "", prix, type: document.querySelector("input[name=c-type]:checked").value, device: deviceId() }) });
     const d = await rep.json().catch(() => ({}));
     retour(d.message || "Erreur " + rep.status, !rep.ok);
-    if (rep.ok) { $("c-prix").value = ""; if (derniersPrix && zone === zoneChoisie) afficherPrix(); }
+    if (rep.ok) { $("c-prix").value = ""; $("c-produit-libre").value = ""; $("c-zone-libre").value = ""; if (derniersPrix && zone === zoneChoisie) afficherPrix(); }
   } catch (e) { retour("Impossible d'envoyer pour le moment. Vérifiez votre connexion.", true); }
   bt.disabled = false;
 });

@@ -11,7 +11,7 @@
 <meta name="description" content="Dagbé : le bon prix, à voix haute. Évaluez une offre de vente et consultez les prix des marchés.">
 <title>Dagbé — le bon prix, à voix haute</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
 
   <header class="top">
     <div class="marque">
-      <span class="logo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 60C14 52 10 34 19 22c2 14 8 26 13 38z" fill="#2f8f4e"/><path d="M32 60C50 52 54 34 45 22c-2 14-8 26-13 38z" fill="#2f8f4e"/><ellipse cx="32" cy="28" rx="11" ry="23" fill="#fff" opacity=".95"/><path d="M32 6v44M25 12v32M39 12v32M21 22h22M21 32h22" stroke="#e0a11b" stroke-width="1.6" fill="none"/></svg></span>
+      <span class="logo"><img src="/logo.png" width="38" height="38" alt=""></span>
       <div><b>Dagbé</b></div>
     </div>
     <button class="icone" id="btn-menu" type="button" aria-label="Réglages" aria-haspopup="dialog">
@@ -112,11 +112,14 @@
       <form id="form-contrib" novalidate>
         <p class="etape">1 · Produit</p>
         <div class="choix" id="c-tuiles"></div>
-        <label>Autre produit
+        <label>Autre produit ou liste complète
           <select id="c-produit" required><option value="">Choisir…</option></select>
         </label>
+        <input class="libre" id="c-produit-libre" type="text" maxlength="40" autocomplete="off" placeholder="Nom du produit (ex. : piment)" aria-label="Nom du produit à proposer" hidden>
         <p class="etape">2 · Marché ou commune</p>
         <select id="c-zone" required style="margin-top:0"><option value="">Choisir…</option></select>
+        <input class="libre" id="c-zone-libre" type="text" maxlength="40" autocomplete="off" placeholder="Nom de la localité (ex. : Dassa-Zoumè)" aria-label="Nom de la localité à proposer" hidden>
+        <p class="aide-libre" id="c-aide-libre" hidden>Ce produit ou ce marché n'est pas encore dans la liste : votre prix sera enregistré, puis utilisé quand l'équipe l'aura validé.</p>
         <label>3 · Prix, en francs par kilo
           <input id="c-prix" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex. : 180" required>
         </label>

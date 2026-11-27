@@ -178,3 +178,37 @@ def test_noms_francais_et_voix():
     assert core.match_product("le prix des haricots noirs") == "Beans (black)"   # pluriel accepté
     assert core.match_product("haricot noir") == "Beans (black)"
     assert core.non_traduits() == []
+
+
+def test_produit_et_marche_inconnus_en_attente_puis_valides():
+    from agriprix import admin
+    # noms invalides refusés
+    for mauvais in ("<script>alert(1)</script>", "piment2", "http://x.com", "a"):
+        assert api.contribuer({"produit_libre": mauvais, "zone": "Allada", "prix": 100, "device": "appareil-test-x"}, "ipx")[0] == 422
+    # un nom déjà connu (français, pluriel) n'est pas une proposition
+    code, rep = api.contribuer({"produit_libre": "maïs blancs", "zone": "Allada", "prix": 150, "device": "appareil-existant-1"}, "ipy")
+    assert code == 200 and rep["statut"] == "ok"
+    # nouveau produit : enregistré mais inutilisé
+    for i in range(5):
+        code, rep = api.contribuer({"produit_libre": "piment", "zone": "Allada", "prix": 800 + i, "device": f"appareil-piment-{i}"}, f"ippiment{i}")
+        assert code == 200 and rep["statut"] == "en_attente"
+    assert "Piment" not in core.crowd_all() and core.resoudre("Piment", "Allada", {}) is None
+    assert admin.promouvoir() == 0
+    # l'administrateur accepte : les 5 contributions s'activent, avec 5 appareils le prix est « Indicatif »
+    assert store.ajouter_ajout("produit", "Piment") is True
+    assert admin.promouvoir() == 5
+    core.recharger_extras()
+    r = core.resoudre("Piment", "Allada", core.crowd_all()["Piment"])
+    assert r["source"] == "collecte" and r["fiabilite"] == "Indicatif" and r["prix"] == 802
+    assert any(i["produit"] == "Piment" for i in api.prix_zone("Allada")["items"])
+    rep = core.conseiller("1000 kg de piment à Allada, offre 700 francs le kilo")      # produit sans relevé HDX : pas de plantage
+    assert rep["status"] == "ok" and rep["reference"]["prix"] == 802
+    # nouveau marché : inutilisable sans coordonnées, puis accepté avec elles
+    code, rep = api.contribuer({"produit": "Tomatoes", "zone_libre": "dassa-zoumè", "prix": 420, "device": "appareil-dassa-1"}, "ipdassa")
+    assert rep["statut"] == "en_attente" and core.coords("Dassa-zoumè") is None
+    assert store.ajouter_ajout("zone", "Dassa-zoumè", 7.75, 2.18) is True
+    assert admin.promouvoir() == 1
+    core.recharger_extras()
+    assert core.coords("Dassa-zoumè") == (7.75, 2.18)
+    item = next(i for i in api.prix_zone("Dassa-zoumè")["items"] if i["produit"] == "Tomatoes")
+    assert item["fiabilite"] == "Peu de données" and item["n_contrib"] == 1

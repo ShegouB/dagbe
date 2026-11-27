@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 
 CRITERE_OK = "ok"
 CRITERE_A_VERIFIER = "a_verifier"
+CRITERE_ATTENTE = "en_attente"   # produit ou marché inconnu : attend la décision de l'administrateur
+CRITERE_REJETE = "rejete"
 
 
 class StoreIndisponible(Exception):
@@ -61,6 +63,8 @@ def _connexion():
             c.execute(f"CREATE TABLE IF NOT EXISTS contributions(id {serial}, product TEXT NOT NULL, zone TEXT NOT NULL, "
                       f"price {reel} NOT NULL, price_type TEXT NOT NULL, device TEXT NOT NULL, ip_hash TEXT NOT NULL, "
                       f"status TEXT NOT NULL, created_at TEXT NOT NULL)")
+            c.execute(f"CREATE TABLE IF NOT EXISTS ajouts(id {serial}, kind TEXT NOT NULL, name TEXT NOT NULL, "
+                      f"lat {reel}, lon {reel}, created_at TEXT NOT NULL)")
             c.commit()
             _pret.add(url)
         return c, ph
@@ -107,10 +111,49 @@ def compter_24h(device, ip_hash):
 
 
 def recentes(jours=14):
-    """Contributions retenues (status ok) des `jours` derniers jours : [(produit, zone, prix, type, date_iso)]."""
+    """Contributions retenues (status ok) des `jours` derniers jours : [(produit, zone, prix, type, date_iso, appareil)]."""
     depuis = iso(maintenant() - timedelta(days=jours))
 
     def f(c, ph):
-        return c.execute(f"SELECT product, zone, price, price_type, created_at FROM contributions "
+        return c.execute(f"SELECT product, zone, price, price_type, created_at, device FROM contributions "
                          f"WHERE status={ph} AND created_at>={ph}", (CRITERE_OK, depuis)).fetchall()
     return _executer(f)
+
+
+# ----------------------------------------------------------------------------- produits et marchés ajoutés par l'administrateur
+def lire_ajouts():
+    """[(kind, nom, lat, lon)] : kind = 'produit' ou 'zone'."""
+    def f(c, ph):
+        return c.execute("SELECT kind, name, lat, lon FROM ajouts ORDER BY id").fetchall()
+    return _executer(f)
+
+
+def ajouter_ajout(kind, nom, lat=None, lon=None):
+    def f(c, ph):
+        if c.execute(f"SELECT 1 FROM ajouts WHERE kind={ph} AND name={ph}", (kind, nom)).fetchone():
+            return False
+        c.execute(f"INSERT INTO ajouts(kind,name,lat,lon,created_at) VALUES({','.join([ph] * 5)})",
+                  (kind, nom, lat, lon, iso(maintenant())))
+        c.commit()
+        return True
+    return _executer(f)
+
+
+def en_attente():
+    """Contributions en attente : [(id, produit, zone, prix, type, date_iso)]."""
+    def f(c, ph):
+        return c.execute(f"SELECT id, product, zone, price, price_type, created_at FROM contributions "
+                         f"WHERE status={ph} ORDER BY id", (CRITERE_ATTENTE,)).fetchall()
+    return _executer(f)
+
+
+def maj_contribution(ident, statut=None, produit=None, zone=None):
+    def f(c, ph):
+        if statut:
+            c.execute(f"UPDATE contributions SET status={ph} WHERE id={ph}", (statut, ident))
+        if produit:
+            c.execute(f"UPDATE contributions SET product={ph} WHERE id={ph}", (produit, ident))
+        if zone:
+            c.execute(f"UPDATE contributions SET zone={ph} WHERE id={ph}", (zone, ident))
+        c.commit()
+    _executer(f)

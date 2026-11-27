@@ -64,11 +64,50 @@ def prix_zone(zone, produit=None):
     return out
 
 
+_NOM_OK = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’ \-]{1,39}$")
+
+
+def _nom_libre(texte):
+    """Nom saisi à la main : lettres, espaces, apostrophes et tirets seulement (pas de chiffres, de liens ni de code)."""
+    t = re.sub(r"\s+", " ", str(texte or "")).strip()
+    if not _NOM_OK.match(t):
+        return None
+    return t[0].upper() + t[1:]
+
+
+def _existant(nom, liste, libelle=lambda x: x):
+    """Élément de `liste` qui porte déjà ce nom (identique à la casse, aux accents et au pluriel près), sinon None."""
+    def cle(x):
+        return " ".join(m[:-1] if len(m) > 3 and m.endswith("s") else m for m in core.norm(x).split())
+    voulu = cle(nom)
+    for x in liste:
+        if voulu in (cle(x), cle(libelle(x))):
+            return x
+    return None
+
+
 def contribuer(data, ip):
-    """Enregistre une contribution. Renvoie (code HTTP, réponse). Rien n'est accepté sans contrôle."""
+    """Enregistre une contribution. Renvoie (code HTTP, réponse). Rien n'est accepté sans contrôle.
+    Un produit ou un marché inconnu n'est pas refusé : la contribution est mise « en attente » jusqu'à la décision de
+    l'administrateur (elle n'entre dans aucun calcul d'ici là)."""
     produits, zones = core.load_lists()
     produit, zone = data.get("produit"), data.get("zone")
-    if produit not in produits or zone not in zones:
+    inconnus = []
+    if data.get("produit_libre"):
+        nom = _nom_libre(data["produit_libre"])
+        if not nom:
+            return 422, {"ok": False, "message": "Le nom du produit ne doit contenir que des lettres (2 à 40)."}
+        produit = _existant(nom, produits, core.label) or nom      # il existe peut-être déjà (nom français, pluriel)
+        if produit not in produits:
+            inconnus.append("produit")
+    if data.get("zone_libre"):
+        nom = _nom_libre(data["zone_libre"])
+        if not nom:
+            return 422, {"ok": False, "message": "Le nom de la localité ne doit contenir que des lettres (2 à 40)."}
+        zone = _existant(nom, zones) or nom
+        if zone not in zones:
+            inconnus.append("zone")
+    if (produit not in produits and "produit" not in inconnus) or (zone not in zones and "zone" not in inconnus):
         return 422, {"ok": False, "message": "Produit ou marché inconnu."}
     try:
         prix = float(str(data.get("prix")).replace(",", ".").replace(" ", ""))
@@ -87,6 +126,11 @@ def contribuer(data, ip):
         n_dev, n_ip = store.compter_24h(device, ip_hash)
         if n_dev >= MAX_PAR_APPAREIL or n_ip >= MAX_PAR_ADRESSE:
             return 429, {"ok": False, "message": "Merci ! Vous avez atteint la limite de contributions pour aujourd'hui."}
+        if inconnus:
+            store.ajouter(produit, zone, prix, type_prix, device, ip_hash, store.CRITERE_ATTENTE)
+            quoi = "ce produit et ce marché" if len(inconnus) == 2 else "ce produit" if inconnus == ["produit"] else "ce marché"
+            return 200, {"ok": True, "statut": "en_attente",
+                         "message": f"Merci ! Votre proposition est enregistrée. L'équipe doit d'abord valider {quoi} avant que votre prix soit utilisé."}
         ref = core.dernier_prix(produit, zone)
         plausible = True
         if ref and not (RATIO_MIN <= prix / ref["prix"] <= RATIO_MAX):

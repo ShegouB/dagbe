@@ -15,7 +15,7 @@ h1,h2,p{margin:0}
 :focus-visible{outline:3px solid var(--mais);outline-offset:2px}
 
 /* ---------- cadre et thèmes ---------- */
-.app{position:fixed;inset:0;max-width:480px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--fond);color:var(--texte)}
+.app{position:fixed;inset:0;max-width:480px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;overflow:clip;background:var(--fond);color:var(--texte)}
 .app[data-onglet="parler"]:not([data-vue="resultat"]){background:var(--sombre);color:#fff}
 @media (min-width:600px){
   html,body{background:#dfe7e1;overflow:hidden}
@@ -28,8 +28,8 @@ h1,h2,p{margin:0}
 /* ---------- en-tête ---------- */
 .top{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 12px) 20px 8px;position:relative;z-index:3}
 .marque{display:flex;align-items:center;gap:10px}
-.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(145deg,#ffd65c,#f2a91b);display:grid;place-items:center}
-.logo svg{width:26px;height:26px}
+.logo{width:38px;height:38px;border-radius:12px;overflow:hidden;display:block;flex:none}
+.logo img{width:100%;height:100%;display:block}
 .marque b{display:block;font-family:var(--titre);font-size:1.4rem;line-height:1.05;letter-spacing:-.01em}
 .marque small{display:none}
 .icone{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;cursor:pointer;background:var(--carte);border:1px solid var(--ligne);color:var(--texte)}
@@ -221,8 +221,8 @@ form select,form input[type=text]{display:block;width:100%;margin-top:8px;paddin
 form input[type=text]{font-family:var(--titre);font-size:1.6rem;font-weight:700;border:2px solid var(--em);min-height:64px}
 fieldset{border:0;padding:0;margin:16px 0 0;display:flex;gap:10px;flex-wrap:wrap}
 legend{font-weight:600;padding:0;margin-bottom:8px;width:100%;font-size:.88rem;color:#3e5247}
-label.radio{margin:0;flex:1 1 120px;font-weight:600}
-label.radio input{position:absolute;opacity:0}
+label.radio{position:relative;margin:0;flex:1 1 120px;font-weight:600}
+label.radio input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 label.radio span{display:block;text-align:center;padding:13px;border:1px solid var(--ligne);border-radius:999px;background:var(--carte);cursor:pointer;min-height:50px;color:var(--texte)}
 label.radio input:checked+span{border-color:transparent;background:var(--em);color:#fff;font-weight:700}
 label.radio input:focus-visible+span{outline:3px solid var(--mais);outline-offset:2px}
@@ -280,3 +280,6 @@ label.radio input:focus-visible+span{outline:3px solid var(--mais);outline-offse
 .picto img{width:100%;height:100%;border-radius:16px;object-fit:cover}
 .picto{overflow:hidden}
 .choix button img{width:42px;height:42px;border-radius:12px;object-fit:cover}
+
+form input.libre{display:block;width:100%;margin-top:8px;padding:0 16px;min-height:54px;border:1.5px dashed var(--em);border-radius:18px;background:var(--carte);font-size:1rem;font-weight:600}
+.aide-libre{margin-top:10px;padding:10px 14px;border-radius:14px;background:var(--mais-pale);color:var(--ambre);font-size:.84rem}

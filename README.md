@@ -106,3 +106,28 @@ python -c "from agriprix import core; print(core.non_traduits())"
 ```
 
 Ajoutez les entrées manquantes dans `BASE_FR` / `QUAL_FR` de `agriprix/core.py`.
+
+## Produits et marchés proposés par les contributeurs
+
+Dans l'onglet Contribuer, « Autre produit… » et « Autre localité… » permettent de proposer un nom absent des listes
+(lettres seulement, 2 à 40 caractères). La contribution est enregistrée avec le statut `en_attente` : elle n'entre dans
+aucun calcul tant que l'administrateur n'a pas validé le produit et/ou le marché. Un nom qui existe déjà (nom français,
+pluriel, accents) n'est pas une proposition : la contribution est traitée normalement.
+
+L'administrateur travaille depuis son ordinateur, avec `DATABASE_URL` (l'adresse de la base Neon) dans l'environnement :
+
+```bash
+python -m agriprix.admin attente                        # propositions en attente, regroupées
+python -m agriprix.admin renommer produit "piment rouge" "Piment"   # regrouper des variantes d'écriture
+python -m agriprix.admin produit "Piment"               # accepter un produit
+python -m agriprix.admin zone "Dassa-Zoumè" 7.75 2.18   # accepter un marché (latitude, longitude)
+python -m agriprix.admin rejeter produit "texte refusé" # écarter
+```
+
+Dès que le produit et le marché d'une contribution sont connus, elle est activée après le contrôle de plausibilité
+habituel. Un marché doit avoir des coordonnées : sans elles, le transport vers les autres marchés ne peut pas être calculé.
+
+Règle de fiabilité pour ce qui n'a aucun relevé HDX : il faut au moins 5 appareils différents (3 contributions
+suffisent quand un relevé HDX permet la comparaison) ; en dessous, le prix est affiché « Peu de données ».
+Les produits et marchés acceptés sont stockés dans la table `ajouts` de la base (relue toutes les 60 s) ; si la base est
+indisponible, l'application revient à la liste HDX.

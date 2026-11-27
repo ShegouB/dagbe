@@ -10,6 +10,7 @@ import difflib
 import functools
 import json
 import math
+import time
 import os
 import re
 import sqlite3
@@ -133,7 +134,7 @@ def reset_db():
     if _conn is not None:
         _conn.close()
     _conn = None
-    load_lists.cache_clear()
+    _base_lists.cache_clear()
 
 
 def fmt(n):
@@ -167,11 +168,38 @@ def haversine(a, b):
 
 
 @functools.lru_cache(maxsize=1)
-def load_lists():
+def _base_lists():
     c = db()
     products = [r[0] for r in c.execute("SELECT DISTINCT product FROM prices WHERE product IS NOT NULL")]
     zones = [r[0] for r in c.execute("SELECT DISTINCT zone FROM prices WHERE zone IS NOT NULL")]
     return products, zones
+
+
+_extras = {"t": 0.0, "produits": [], "zones": [], "coords": {}}
+
+
+def recharger_extras():
+    _extras["t"] = 0.0
+
+
+def extras():
+    """Produits et marchés ajoutés par l'administrateur (base des contributions), relus toutes les 60 s.
+    Base absente ou en panne : on garde la dernière lecture, ou rien, et l'application reste sur la copie HDX."""
+    if time.time() - _extras["t"] > 60:
+        try:
+            rows = store.lire_ajouts()
+            _extras.update(produits=[r[1] for r in rows if r[0] == "produit"], zones=[r[1] for r in rows if r[0] == "zone"],
+                           coords={r[1]: (r[2], r[3]) for r in rows if r[0] == "zone" and r[2] is not None and r[3] is not None})
+        except store.StoreIndisponible:
+            pass
+        _extras["t"] = time.time()
+    return _extras
+
+
+def load_lists():
+    p, z = _base_lists()
+    e = extras()
+    return p + [x for x in e["produits"] if x not in p], z + [x for x in e["zones"] if x not in z]
 
 
 def best_match(text, candidates, cutoff):
@@ -373,12 +401,15 @@ def historique(produit, zone, jusqu_a, jours=365):
 
 
 def coords(zone):
+    if zone in extras()["coords"]:
+        return extras()["coords"][zone]
     r = db().execute("SELECT AVG(lat), AVG(lon) FROM prices WHERE zone=? AND lat IS NOT NULL AND lon IS NOT NULL", (zone,)).fetchone()
     return (r[0], r[1]) if r and r[0] is not None else None
 
 
 # ----------------------------------------------------------------------------- contributions croisées avec HDX
 JOURS_COLLECTE = 14   # une contribution compte pendant 14 jours
+MIN_SANS_HDX = 5     # produit ou marché sans relevé HDX : 5 appareils différents au minimum
 MIN_COLLECTE = 3      # il faut au moins 3 contributions cohérentes pour que le prix collecté fasse référence
 TOLERANCE_ACCORD = 0.25  # collecte et HDX « concordent » à ±25 %
 
@@ -391,15 +422,16 @@ def crowd_all(jours=JOURS_COLLECTE):
     except store.StoreIndisponible:
         return {}
     groupes = {}
-    for produit, zone, prix, type_prix, cree in rows:
-        groupes.setdefault((produit, zone), {}).setdefault((type_prix or "Retail"), []).append((prix, cree))
+    for produit, zone, prix, type_prix, cree, appareil in rows:
+        groupes.setdefault((produit, zone), {}).setdefault((type_prix or "Retail"), []).append((prix, cree, appareil))
     out = {}
     for (produit, zone), par_type in groupes.items():
         # on ne mélange pas détail et gros : on garde le type le mieux fourni (détail en cas d'égalité)
         t = max(par_type, key=lambda k: (len(par_type[k]), k == "Retail"))
         vals = par_type[t]
         out.setdefault(produit, {})[zone] = {"prix": statistics.median(v[0] for v in vals), "n": len(vals), "type": t,
-                                             "date": max(v[1] for v in vals)[:10]}
+                                             "date": max(v[1] for v in vals)[:10],
+                                             "appareils": len({v[2] for v in vals})}
     return out
 
 
@@ -413,7 +445,7 @@ def resoudre(produit, zone, crowd, depuis=None):
     base = {"prix_hdx": h["prix"] if h else None, "date_hdx": h["date"] if h else None,
             "prix_collecte": c["prix"] if c else None, "n_contrib": c["n"] if c else 0}
     if c and (c["n"] >= MIN_COLLECTE or not h):
-        if c["n"] < MIN_COLLECTE:
+        if c["n"] < MIN_COLLECTE or (not h and c.get("appareils", c["n"]) < MIN_SANS_HDX):
             fiab = "Peu de données"
         elif h and abs(c["prix"] - h["prix"]) / h["prix"] <= TOLERANCE_ACCORD:
             fiab = "Fiable"
@@ -427,7 +459,8 @@ def resoudre(produit, zone, crowd, depuis=None):
 
 
 def date_max(produit):
-    return db().execute("SELECT MAX(date) FROM prices WHERE product=?", (produit,)).fetchone()[0]
+    d = db().execute("SELECT MAX(date) FROM prices WHERE product=?", (produit,)).fetchone()[0]
+    return d or datetime.now().strftime("%Y-%m-%d")   # produit ajouté sans relevé HDX
 
 
 def calculer(d):
@@ -465,7 +498,7 @@ def calculer(d):
         zones = {r[0] for r in db().execute(
             "SELECT DISTINCT zone FROM prices WHERE product=? AND zone<>? AND date>=? AND unit IN (%s)" % ",".join("?" * len(UNITES_OK)),
             (produit, zone, limite, *UNITES_OK))}
-        zones |= {z for z, c in crowd.items() if z != zone and c["n"] >= MIN_COLLECTE}
+        zones |= {z for z, c in crowd.items() if z != zone and c["n"] >= MIN_COLLECTE and (c.get("appareils", c["n"]) >= MIN_SANS_HDX or dernier_prix(produit, z))}
         for z in sorted(zones):
             xy = coords(z)
             if not xy:

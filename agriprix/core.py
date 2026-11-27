@@ -18,6 +18,8 @@ import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from . import store
+
 # ----------------------------------------------------------------------------- configuration
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = os.getenv("PRICES_DB", str(ROOT / "data" / "prices.db"))
@@ -47,6 +49,8 @@ SYNONYMS = {
     "poisson": "Fish (fresh, silvi)", "orange": "Oranges", "oranges": "Oranges",
 }
 LABEL_FR = {
+    "Coconut (dried)": "noix de coco séchée", "Leafy vegetables": "légumes feuilles", "Peas (green, dry)": "petit pois secs",
+    "Shrimps": "crevettes", "Snail": "escargot",
     "Tomatoes": "tomate", "Onions": "oignon", "Rice (imported)": "riz importé", "Maize (white)": "maïs blanc",
     "Sorghum (red)": "sorgho rouge", "Cassava meal (gari)": "gari", "Cassava meal (tapioca)": "tapioca",
     "Beans (white)": "haricot blanc", "Soybeans": "soja", "Oil (palm)": "huile de palme",
@@ -57,8 +61,50 @@ MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août
         "septembre", "octobre", "novembre", "décembre"]
 
 
+# Traduction automatique des noms HDX/WFP (anglais) pour les produits absents de LABEL_FR : « Beans (black) » -> « haricot noir ».
+BASE_FR = {
+    "beans": "haricot", "cowpeas": "niébé", "cabbage": "chou", "carrots": "carotte", "cassava": "manioc",
+    "cassava flour": "farine de manioc", "cassava meal": "semoule de manioc", "cassava chips": "cossettes de manioc",
+    "maize": "maïs", "maize flour": "farine de maïs", "maize meal": "farine de maïs", "millet": "mil", "rice": "riz",
+    "sorghum": "sorgho", "yams": "igname", "yam": "igname", "yam flour": "farine d'igname", "oil": "huile",
+    "groundnuts": "arachide", "peanuts": "arachide", "tomatoes": "tomate", "onions": "oignon", "peppers": "piment",
+    "fish": "poisson", "oranges": "orange", "soybeans": "soja", "bananas": "banane", "plantains": "banane plantain",
+    "eggs": "œufs", "meat": "viande", "meat (beef)": "viande de bœuf", "beef": "bœuf", "chicken": "poulet",
+    "goat meat": "viande de chèvre", "okra": "gombo", "garlic": "ail", "ginger": "gingembre", "lettuce": "laitue",
+    "cucumbers": "concombre", "eggplants": "aubergine", "spinach": "épinard", "sugar": "sucre", "salt": "sel",
+    "bread": "pain", "wheat": "blé", "wheat flour": "farine de blé", "sesame": "sésame", "cashew nuts": "noix de cajou",
+    "potatoes": "pomme de terre", "sweet potatoes": "patate douce", "taro": "taro", "pineapples": "ananas",
+    "mangoes": "mangue", "avocados": "avocat", "papaya": "papaye", "lemons": "citron", "milk": "lait", "tapioca": "tapioca",
+    "bambara": "voandzou", "shea butter": "beurre de karité", "charcoal": "charbon", "palm nut": "noix de palme",
+}
+QUAL_FR = {
+    "black": "noir", "red": "rouge", "white": "blanc", "yellow": "jaune", "green": "vert", "imported": "importé", "local": "local",
+    "fine": "fin", "coarse": "grossier", "dry": "sec", "dried": "séché", "fresh": "frais", "niebe": "niébé", "shelled": "décortiquée",
+    "unshelled": "en coque", "palm": "de palme", "vegetable": "végétale", "groundnut": "d'arachide", "cotton": "de coton",
+    "smoked": "fumé", "frozen": "congelé", "small": "petit", "large": "gros", "ripe": "mûr", "unripe": "vert", "gari": "gari",
+}
+
+
 def label(produit):
-    return LABEL_FR.get(produit, produit)
+    """Nom français d'un produit du registre (jamais d'invention : sans correspondance, le nom d'origine est conservé)."""
+    if produit in LABEL_FR:
+        return LABEL_FR[produit]
+    m = re.match(r"^\s*([^()]+?)\s*(?:\((.*)\))?\s*$", str(produit))
+    if not m:
+        return produit
+    base, qual = m.group(1).strip(), (m.group(2) or "")
+    b = BASE_FR.get(base.lower())
+    if b is None:
+        return produit
+    quals = [q.strip().lower() for q in qual.split(",") if q.strip()]
+    if base.lower() == "cassava meal" and "gari" in quals:
+        b, quals = "gari", [q for q in quals if q != "gari"]
+    return " ".join([b] + [QUAL_FR.get(q, q) for q in quals])
+
+
+def non_traduits():
+    """Produits du registre dont le nom reste en anglais (à compléter dans BASE_FR / QUAL_FR)."""
+    return sorted(p for p in load_lists()[0] if label(p) == p)
 
 
 # ----------------------------------------------------------------------------- utilitaires
@@ -150,6 +196,15 @@ def match_product(text):
     for phrase in sorted(SYNONYMS, key=len, reverse=True):
         if f" {norm(phrase)} " in padded and SYNONYMS[phrase] in products:
             return SYNONYMS[phrase]
+    sing = lambda t: " ".join(w[:-1] if len(w) > 3 and w.endswith("s") else w for w in norm(t).split())
+    texte_s, trouve = " " + sing(text) + " ", None
+    for p in sorted(products, key=lambda x: -len(label(x))):       # noms français complets : « haricot noir », « farine de manioc »
+        f = sing(label(p))
+        if f and f != sing(p) and f" {f} " in texte_s:
+            trouve = p
+            break
+    if trouve:
+        return trouve
     key = best_match(text, [k for k in SYNONYMS if SYNONYMS[k] in products], 0.8)  # fautes de transcription
     return SYNONYMS[key] if key else best_match(text, products, 0.8)
 
@@ -322,6 +377,55 @@ def coords(zone):
     return (r[0], r[1]) if r and r[0] is not None else None
 
 
+# ----------------------------------------------------------------------------- contributions croisées avec HDX
+JOURS_COLLECTE = 14   # une contribution compte pendant 14 jours
+MIN_COLLECTE = 3      # il faut au moins 3 contributions cohérentes pour que le prix collecté fasse référence
+TOLERANCE_ACCORD = 0.25  # collecte et HDX « concordent » à ±25 %
+
+
+def crowd_all(jours=JOURS_COLLECTE):
+    """{produit: {zone: {prix (médiane), n, type, date}}}. Vide si la base des contributions est absente ou en panne :
+    l'application répond alors avec la seule copie HDX."""
+    try:
+        rows = store.recentes(jours)
+    except store.StoreIndisponible:
+        return {}
+    groupes = {}
+    for produit, zone, prix, type_prix, cree in rows:
+        groupes.setdefault((produit, zone), {}).setdefault((type_prix or "Retail"), []).append((prix, cree))
+    out = {}
+    for (produit, zone), par_type in groupes.items():
+        # on ne mélange pas détail et gros : on garde le type le mieux fourni (détail en cas d'égalité)
+        t = max(par_type, key=lambda k: (len(par_type[k]), k == "Retail"))
+        vals = par_type[t]
+        out.setdefault(produit, {})[zone] = {"prix": statistics.median(v[0] for v in vals), "n": len(vals), "type": t,
+                                             "date": max(v[1] for v in vals)[:10]}
+    return out
+
+
+def resoudre(produit, zone, crowd, depuis=None):
+    """Prix de référence d'un produit dans une zone, en croisant la copie HDX et les contributions récentes.
+    Renvoie None, ou un dict : prix, date, marche, type, source ('collecte' | 'hdx'), fiabilite, n_contrib, prix_hdx..."""
+    h = dernier_prix(produit, zone, depuis)
+    c = (crowd or {}).get(zone)
+    if not h and not c:
+        return None
+    base = {"prix_hdx": h["prix"] if h else None, "date_hdx": h["date"] if h else None,
+            "prix_collecte": c["prix"] if c else None, "n_contrib": c["n"] if c else 0}
+    if c and (c["n"] >= MIN_COLLECTE or not h):
+        if c["n"] < MIN_COLLECTE:
+            fiab = "Peu de données"
+        elif h and abs(c["prix"] - h["prix"]) / h["prix"] <= TOLERANCE_ACCORD:
+            fiab = "Fiable"
+        else:
+            fiab = "Indicatif"
+        return {**base, "prix": c["prix"], "date": c["date"], "marche": zone, "type": c["type"], "flag": "actual",
+                "source": "collecte", "fiabilite": fiab}
+    recent = bool(h) and h["date"] >= (datetime.strptime(date_max(produit)[:10], "%Y-%m-%d") - timedelta(days=FRESH_DAYS)).strftime("%Y-%m-%d")
+    return {**base, "prix": h["prix"], "date": h["date"], "marche": h["marche"], "type": h["type"], "flag": h["flag"],
+            "source": "hdx", "fiabilite": "Indicatif" if recent else "Ancien"}
+
+
 def date_max(produit):
     return db().execute("SELECT MAX(date) FROM prices WHERE product=?", (produit,)).fetchone()[0]
 
@@ -332,9 +436,10 @@ def calculer(d):
     avert = []
     dmax = date_max(produit)
     limite = (datetime.strptime(dmax[:10], "%Y-%m-%d") - timedelta(days=FRESH_DAYS)).strftime("%Y-%m-%d")
-    ref = dernier_prix(produit, zone)
-    hist = historique(produit, zone, ref["date"]) if ref else None
-    if ref and ref["date"] < limite:
+    crowd = crowd_all().get(produit, {})
+    ref = resoudre(produit, zone, crowd)
+    hist = historique(produit, zone, ref["date_hdx"] or ref["date"]) if ref else None
+    if ref and ref["source"] == "hdx" and ref["date"] < limite:
         avert.append(f"Le dernier prix connu à {zone} date du {fmt_date(ref['date'])} : il peut être dépassé.")
     if not ref:
         avert.append(f"Je n'ai pas de prix de {label(produit)} à {zone} dans ma base.")
@@ -357,18 +462,19 @@ def calculer(d):
     if zone_xy is None:
         avert.append(f"Je ne connais pas les coordonnées de {zone} : je ne peux pas calculer le transport vers d'autres marchés.")
     else:
-        zones = [r[0] for r in db().execute(
+        zones = {r[0] for r in db().execute(
             "SELECT DISTINCT zone FROM prices WHERE product=? AND zone<>? AND date>=? AND unit IN (%s)" % ",".join("?" * len(UNITES_OK)),
-            (produit, zone, limite, *UNITES_OK))]
-        for z in zones:
+            (produit, zone, limite, *UNITES_OK))}
+        zones |= {z for z, c in crowd.items() if z != zone and c["n"] >= MIN_COLLECTE}
+        for z in sorted(zones):
             xy = coords(z)
             if not xy:
                 continue
             km = haversine(zone_xy, xy) * ROAD_FACTOR
             if km > MAX_DISTANCE_KM:
                 continue
-            p = dernier_prix(produit, z, depuis=limite)
-            if p:
+            p = resoudre(produit, z, crowd, depuis=limite)
+            if p and p["fiabilite"] != "Peu de données":
                 options.append(_option(z, z, p["prix"], p["date"], p["marche"], km, qte, cout, offre=False))
     options.sort(key=lambda o: o["net_total_fcfa"], reverse=True)
     return {"reference": ({"zone": zone, **ref} if ref else None), "historique_12_mois": hist, "verdict_offre": verdict,
@@ -416,10 +522,20 @@ def rediger(d, res):
     L.append(f"Vente de {fmt(qte)} kg de {produit} à {zone}" + (f", offre reçue : {fmt(offre)} F/kg." if offre else "."))
     V.append(f"Pour {fmt(qte)} kilos de {produit} à {zone}.")
     if ref:
-        L.append(f"Prix de référence à {zone} : {fmt(ref['prix'])} F/kg ({_type_prix(ref)}, marché de {ref['marche']}, "
-                 f"relevé du {fmt_date(ref['date'])}, source : {SOURCE}).")
-        V.append(f"Le prix de référence à {zone} est de {fmt(ref['prix'])} francs le kilo, "
-                 f"{_type_prix(ref)} relevé en {date_parlee(ref['date'])}.")
+        if ref["source"] == "collecte":
+            hdx = f" ; HDX : {fmt(ref['prix_hdx'])} F/kg, relevé du {fmt_date(ref['date_hdx'])}" if ref["prix_hdx"] else ""
+            L.append(f"Prix de référence à {zone} : {fmt(ref['prix'])} F/kg ({_type_prix(ref)} collecté auprès de "
+                     f"{ref['n_contrib']} personnes ces {JOURS_COLLECTE} derniers jours{hdx}).")
+            V.append(f"Le prix de référence à {zone} est de {fmt(ref['prix'])} francs le kilo, d'après "
+                     f"{ref['n_contrib']} relevés récents de producteurs et de commerçants.")
+        else:
+            L.append(f"Prix de référence à {zone} : {fmt(ref['prix'])} F/kg ({_type_prix(ref)}, marché de {ref['marche']}, "
+                     f"relevé du {fmt_date(ref['date'])}, source : {SOURCE}).")
+            V.append(f"Le prix de référence à {zone} est de {fmt(ref['prix'])} francs le kilo, "
+                     f"{_type_prix(ref)} relevé en {date_parlee(ref['date'])}.")
+            if ref["n_contrib"]:
+                L.append(f"{ref['n_contrib']} contribution(s) récente(s) à {fmt(ref['prix_collecte'])} F/kg : pas encore assez "
+                         f"pour faire référence (il en faut {MIN_COLLECTE}).")
     if v:
         e = virg(abs(v["ecart_pct"]))
         if v["niveau"] == "inférieure":

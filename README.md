@@ -26,6 +26,31 @@ L'application s'ouvre ensuite en plein écran et reste lisible hors connexion (�
 `/qr.html` affiche un QR code à faire scanner pendant la démo. Aperçus sans serveur : `/?exemple`, `/?exemple=question`,
 `/?sim=ios|android|inapp`.
 
+## Prix collectés auprès des utilisateurs (nouveau)
+Onglets **Parler** (conseil sur une offre), **Prix** (choisir une zone et voir les prix, avec source, date, fiabilité et marchés
+voisins) et **Contribuer** (donner un prix au formulaire ou à la voix ; la voix ne fait que pré-remplir, l'utilisateur confirme).
+
+Croisement avec HDX (`agriprix/core.py`, fonction `resoudre`) :
+- contributions des **14 derniers jours**, médiane par marché et produit, sans mélanger détail et gros ;
+- **≥ 3 contributions** : le prix collecté fait référence. Fiabilité « Fiable » s'il est à ±25 % du dernier prix HDX, sinon « Indicatif ».
+  Moins de 3 : HDX reste la référence et la collecte est mentionnée ; sans HDX : « Peu de données » ;
+- une contribution à moins de 0,4× ou plus de 2,5× le dernier prix HDX est enregistrée « à vérifier » et **n'est pas utilisée** ;
+- limites : 10 contributions par appareil et 30 par adresse réseau et par 24 h ; prix entre 10 et 50 000 F/kg.
+
+**Si HDX ou la base des contributions est indisponible**, Dagbé répond quand même : copie HDX embarquée (`data/prices.db`) et/ou
+contributions ; si aucune source n'a de prix, il le dit sans rien inventer.
+
+**Activer la collecte** (Vercel ne peut pas écrire sur son disque) : *Vercel → projet → Storage → Create Database → Neon (Postgres)*
+puis le connecter au projet : la variable `DATABASE_URL` est ajoutée automatiquement ; *Redeploy*. La table se crée toute seule.
+`/api/health` indique `collecte.ok`. Modération dans la console SQL de Neon :
+```sql
+SELECT id, product, zone, price, created_at FROM contributions WHERE status = 'a_verifier' ORDER BY id DESC;
+UPDATE contributions SET status = 'ok' WHERE id = 123;       -- confirmer
+DELETE FROM contributions WHERE id = 123;                    -- supprimer
+```
+Sans `DATABASE_URL`, tout le reste fonctionne ; seul l'envoi d'une contribution répond « collecte pas encore activée ».
+Pour tester en local sans Postgres : `DATABASE_URL=sqlite:///contrib.db`.
+
 ## 1. Préparer les données (une seule fois, sur votre machine)
 
 ```bash
@@ -65,6 +90,19 @@ Réglages optionnels (variables d'environnement) : `TTS_MODELS`, `TTS_VOICE` (ex
 
 ## 5. Hypothèses à valider avec l'équipe
 - Transport : 0,15 F/kg/km × distance routière (1,3 × vol d'oiseau), marchés à ≤ 150 km (`TRANSPORT_FCFA_PAR_KG_KM`, `MAX_DISTANCE_KM`).
-- Prix de référence : dernier prix **de détail** observé dans la zone ; verdict ±10 %. Un producteur vend souvent en gros : à trancher.
+- Prix de référence : dernier prix **de détail** observé dans la zone ; verdict ±10 %. Un producteur vend souvent en gros : à trancher (les contributions distinguent détail et gros).
 - Un prix de plus de 90 jours (par rapport au plus récent du produit) n'est pas proposé comme alternative.
 - Produits reconnus : synonymes français dans `agriprix/core.py` (`SYNONYMS`) ; à compléter avec la liste réelle.
+
+Sécurité : ne jamais mettre les clés dans le code ni sur GitHub ; révoquer toute clé déjà exposée.
+
+## Noms de produits en français
+
+Les noms HDX (anglais) sont traduits par `core.label()`. Pour lister ceux qui ne le sont pas encore
+(avec `data/prices.db` présent) :
+
+```bash
+python -c "from agriprix import core; print(core.non_traduits())"
+```
+
+Ajoutez les entrées manquantes dans `BASE_FR` / `QUAL_FR` de `agriprix/core.py`.

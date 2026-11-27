@@ -23,6 +23,7 @@ def fabrique():
             c.execute(ins, ("Maize (white)", z, z, "KG", "XOF", p * f, "Retail", d, "actual", la, lo))
             c.execute(ins, ("Maize (white)", z, z, "KG", "XOF", p * f * .7, "Wholesale", d, "actual", la, lo))
         c.execute(ins, ("Tomatoes", z, z, "KG", "XOF", 400, "Retail", "2026-10-31", "actual", la, lo))
+    c.execute(ins, ("Beans (black)", "Parakou", "Parakou", "KG", "XOF", 430, "Retail", "2026-10-31", "actual", 9.34, 2.63))
     c.execute(ins, ("Maize (white)", "Vieux", "Vieux", "KG", "XOF", 500, "Retail", "2026-01-31", "actual", 6.7, 2.2))
     c.commit()
     c.close()
@@ -104,3 +105,76 @@ def test_sans_offre_et_texte_vide():
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# ---------------------------------------------------------------- contributions croisées avec HDX
+from agriprix import api, store  # noqa: E402
+
+os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(), "contrib.db")
+
+
+def _contribs(zone, prix_liste, produit="Maize (white)", type_="Retail"):
+    for i, p in enumerate(prix_liste):
+        code, rep = api.contribuer({"produit": produit, "zone": zone, "prix": p, "type": type_, "device": f"appareil-{zone}-{i}-{p}"}, f"ip{i}")
+        assert code == 200 and rep["ok"], rep
+
+
+def test_collecte_prime_a_partir_de_3_contributions():
+    assert core.resoudre("Maize (white)", "Bohicon", {})["source"] == "hdx"
+    _contribs("Bohicon", [150, 160])
+    r = core.resoudre("Maize (white)", "Bohicon", core.crowd_all()["Maize (white)"])
+    assert r["source"] == "hdx" and r["n_contrib"] == 2          # 2 contributions : pas encore une référence
+    _contribs("Bohicon", [155])
+    r = core.resoudre("Maize (white)", "Bohicon", core.crowd_all()["Maize (white)"])
+    assert r["source"] == "collecte" and r["prix"] == 155 and r["n_contrib"] == 3
+    assert r["fiabilite"] == "Fiable" and r["prix_hdx"] == 130 * 1.0   # HDX 130 vs 155 : écart 19 % < 25 %
+
+
+def test_collecte_aberrante_mise_de_cote():
+    code, rep = api.contribuer({"produit": "Maize (white)", "zone": "Glazoue", "prix": 900, "device": "appareil-aberrant"}, "ipx")
+    assert code == 200 and rep["statut"] == "a_verifier"        # 900 F contre 140 en HDX
+    assert "Glazoue" not in core.crowd_all().get("Maize (white)", {})
+    assert api.contribuer({"produit": "Maize (white)", "zone": "Glazoue", "prix": 5, "device": "appareil-aberrant"}, "ipx")[0] == 422
+    assert api.contribuer({"produit": "Inconnu", "zone": "Glazoue", "prix": 100, "device": "appareil-aberrant"}, "ipx")[0] == 422
+
+
+def test_limite_par_appareil():
+    for i in range(api.MAX_PAR_APPAREIL):
+        assert api.contribuer({"produit": "Tomatoes", "zone": "Parakou", "prix": 400, "device": "meme-appareil-1"}, f"ip{i}")[0] == 200
+    assert api.contribuer({"produit": "Tomatoes", "zone": "Parakou", "prix": 400, "device": "meme-appareil-1"}, "ip99")[0] == 429
+
+
+def test_conseil_utilise_la_collecte_et_repli_sans_base():
+    r = core.conseiller("1000 kg de maïs à Bohicon, offre 100 francs le kilo")
+    assert r["reference"]["source"] == "collecte" and r["reference"]["prix"] == 155
+    assert "collecté auprès de 3 personnes" in r["reponse_texte"] and "3 relevés récents" in r["reponse_vocale"]
+    saved = os.environ.pop("DATABASE_URL")                       # base des contributions indisponible : repli HDX
+    try:
+        r = core.conseiller("1000 kg de maïs à Bohicon, offre 100 francs le kilo")
+        assert r["status"] == "ok" and r["reference"]["source"] == "hdx" and r["reference"]["prix"] == 130
+    finally:
+        os.environ["DATABASE_URL"] = saved
+
+
+def test_prix_zone_et_voisins():
+    r = api.prix_zone("Allada")
+    assert {i["produit"] for i in r["items"]} == {"Maize (white)", "Tomatoes"}
+    r = api.prix_zone("Allada", "Maize (white)")
+    assert r["items"][0]["prix"] == 150 and r["items"][0]["source"] == "hdx" and r["items"][0]["min_12_mois"] is not None
+    assert [v["zone"] for v in r["voisins"]][0] == "Cotonou" and all(v["distance_km"] <= 150 for v in r["voisins"])
+    assert api.prix_zone("Nulle part")["erreur"] == "zone_inconnue"
+    z = api.zones_et_produits()
+    assert z["collecte"] is True and any(p["fr"] == "maïs blanc" for p in z["produits"])
+
+
+def test_extraction_pour_contribution():
+    r = api.extraire_contribution("le maïs est à 180 francs au marché de Allada")
+    assert (r["produit"], r["zone"], r["prix"]) == ("Maize (white)", "Allada", 180)
+
+
+def test_noms_francais_et_voix():
+    assert core.label("Beans (black)") == "haricot noir" and core.label("Cassava meal (gari, fine)") == "gari fin"
+    assert core.label("Maize (white)") == "maïs blanc" and core.label("Truc inconnu (x)") == "Truc inconnu (x)"
+    assert core.match_product("le prix des haricots noirs") == "Beans (black)"   # pluriel accepté
+    assert core.match_product("haricot noir") == "Beans (black)"
+    assert core.non_traduits() == []

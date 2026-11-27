@@ -2,5 +2,6 @@ fastapi
 python-multipart
 requests
 uvicorn
-python-dotenv
+psycopg[binary]
 httpx
+python-dotenv

@@ -3,82 +3,160 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f3d28">
+<meta name="theme-color" content="#0a2a1d">
 <meta name="application-name" content="Dagbé">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Dagbé">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Dagbé : le bon prix, à voix haute. Évaluez une offre de vente avec des prix vérifiables.">
+<meta name="description" content="Dagbé : le bon prix, à voix haute. Évaluez une offre de vente et consultez les prix des marchés.">
 <title>Dagbé — le bon prix, à voix haute</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="app" id="app" data-vue="accueil">
+<div class="app" id="app" data-onglet="parler" data-vue="accueil">
 
   <header class="top">
     <div class="marque">
-      <img src="/favicon.svg" width="34" height="34" alt="">
-      <div><b>Dagbé</b><small>Le bon prix, à voix haute</small></div>
+      <span class="logo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 60C14 52 10 34 19 22c2 14 8 26 13 38z" fill="#2f8f4e"/><path d="M32 60C50 52 54 34 45 22c-2 14-8 26-13 38z" fill="#2f8f4e"/><ellipse cx="32" cy="28" rx="11" ry="23" fill="#fff" opacity=".95"/><path d="M32 6v44M25 12v32M39 12v32M21 22h22M21 32h22" stroke="#e0a11b" stroke-width="1.6" fill="none"/></svg></span>
+      <div><b>Dagbé</b></div>
     </div>
-    <button class="rond" id="btn-menu" type="button" aria-label="Réglages" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+    <button class="icone" id="btn-menu" type="button" aria-label="Réglages" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
   </header>
 
   <aside class="install" id="install" hidden role="region" aria-label="Installer l'application">
-    <img src="/icons/icon-192.png" width="44" height="44" alt="">
+    <img src="/icons/icon-192.png" width="40" height="40" alt="">
     <div class="install-texte">
       <b id="install-titre">Installez Dagbé sur votre téléphone</b>
-      <span id="install-aide">Accès direct depuis votre écran d'accueil, en plein écran.</span>
+      <span id="install-aide">Accès direct depuis votre écran d'accueil.</span>
       <ol id="install-etapes" hidden></ol>
     </div>
     <div class="install-actions">
-      <button class="btn-ocre" id="install-go" type="button">Installer</button>
+      <button class="btn plein" id="install-go" type="button">Installer</button>
       <button class="lien" id="install-non" type="button">Plus tard</button>
     </div>
   </aside>
 
-  <main class="scene" id="scene">
-    <!-- Accueil -->
-    <section class="accueil" id="accueil">
-      <p class="grand" id="statut-accueil">Appuyez sur le micro<br>et dites votre offre</p>
-      <div class="exemple-phrase">
-        <span>Par exemple</span>
-        <q>On m'offre 150 francs le kilo de maïs à Allada. J'ai 1 000 kilos.</q>
+  <!-- ===================== PARLER ===================== -->
+  <section class="vue" id="v-parler">
+    <div class="corps" id="scene">
+      <div class="accueil" id="accueil">
+        <h1>Quelle offre<br>vous a-t-on faite&nbsp;?</h1>
+        <p>Touchez un produit, ou appuyez sur le micro et dites le marché, la quantité et le prix. Dagbé vous répond à voix haute.</p>
+        <div class="tuiles" id="tuiles"></div>
       </div>
-    </section>
+      <div class="feuille" id="feuille" aria-live="polite"></div>
+    </div>
+    <div class="dock">
+      <p class="statut" id="statut" aria-live="polite">Touchez pour parler</p>
+      <button class="micro" id="orbe" type="button" data-etat="repos" aria-label="Appuyer pour parler">
+        <svg class="i-micro" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor" stroke="none"/>
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7"/>
+        </svg>
+        <span class="i-barres" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="i-attente" aria-hidden="true"></span>
+      </button>
+      <form class="ecrire" id="form-texte" hidden>
+        <input id="saisie" type="text" autocomplete="off" enterkeyhint="send" placeholder="Écrivez votre demande…" aria-label="Votre demande">
+        <button class="btn plein" type="submit">Envoyer</button>
+      </form>
+      <button class="lien petit" id="btn-ecrire" type="button">Écrire plutôt que parler</button>
+    </div>
+  </section>
 
-    <!-- Feuille de résultat -->
-    <section class="feuille" id="feuille" aria-live="polite"></section>
-  </main>
+  <!-- ===================== PRIX ===================== -->
+  <section class="vue" id="v-prix" hidden>
+    <div class="bandeau">
+      <h1 class="titre-vue">Prix des marchés</h1>
+      <button class="selecteur" id="choisir-zone" type="button" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+        <span id="zone-libelle">Choisir une zone</span>
+        <span class="chg">Changer</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+    <div class="corps">
+      <input class="recherche" id="prix-recherche" type="search" placeholder="Rechercher un produit" autocomplete="off" aria-label="Rechercher un produit" hidden>
+      <p class="vide" id="prix-vide">Choisissez une zone pour voir les prix connus.</p>
+      <div class="liste" id="liste-prix"></div>
+      <p class="note" id="prix-note" hidden>Les prix viennent de la base HDX (WFP) et des contributions récentes. Ouvrez une ligne pour voir la source et la date.</p>
+    </div>
+  </section>
 
-  <footer class="dock">
-    <p class="statut" id="statut" aria-live="polite">Appuyez pour parler</p>
-    <button class="orbe" id="orbe" type="button" data-etat="repos" aria-label="Appuyer pour parler">
-      <span class="halo"></span>
-      <svg class="i-micro" viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor" stroke="none"/>
-        <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7"/>
-      </svg>
-      <span class="i-barres" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-      <span class="i-attente" aria-hidden="true"></span>
+  <!-- ===================== CONTRIBUER ===================== -->
+  <section class="vue" id="v-contribuer" hidden>
+    <div class="corps">
+      <h1 class="titre-vue">Donner un prix</h1>
+      <p class="intro" style="margin-top:0">Vous êtes au marché&nbsp;? Aidez les autres à vendre au juste prix.</p>
+
+      <div class="voix-contrib">
+        <button class="micro petit" id="mic-contrib" type="button" data-etat="repos" aria-label="Dire le prix à voix haute">
+          <svg class="i-micro" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor" stroke="none"/>
+            <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7"/>
+          </svg>
+          <span class="i-barres" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="i-attente" aria-hidden="true"></span>
+        </button>
+        <div><b>Dites-le à voix haute</b><span id="contrib-statut">Ex. : « Le maïs est à 180 francs au marché »</span></div>
+      </div>
+
+      <form id="form-contrib" novalidate>
+        <p class="etape">1 · Produit</p>
+        <div class="choix" id="c-tuiles"></div>
+        <label>Autre produit
+          <select id="c-produit" required><option value="">Choisir…</option></select>
+        </label>
+        <p class="etape">2 · Marché ou commune</p>
+        <select id="c-zone" required style="margin-top:0"><option value="">Choisir…</option></select>
+        <label>3 · Prix, en francs par kilo
+          <input id="c-prix" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex. : 180" required>
+        </label>
+        <fieldset>
+          <legend>Type de vente</legend>
+          <label class="radio"><input type="radio" name="c-type" value="Retail" checked><span>Au détail</span></label>
+          <label class="radio"><input type="radio" name="c-type" value="Wholesale"><span>En gros</span></label>
+        </fieldset>
+        <button class="btn plein grand" type="submit" id="c-envoyer">Envoyer mon prix</button>
+        <p class="retour" id="c-retour" role="status" aria-live="polite" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <nav class="onglets" aria-label="Navigation">
+    <button type="button" data-onglet="parler" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
+      <span>Parler</span>
     </button>
-    <form class="ecrire" id="form-texte" hidden>
-      <input id="saisie" type="text" autocomplete="off" enterkeyhint="send" placeholder="Écrivez votre demande…" aria-label="Votre demande">
-      <button class="btn-ocre" type="submit">Envoyer</button>
-    </form>
-    <button class="lien petit" id="btn-ecrire" type="button">Écrire plutôt que parler</button>
-  </footer>
+    <button type="button" data-onglet="prix">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <span>Prix</span>
+    </button>
+    <button type="button" data-onglet="contribuer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Contribuer</span>
+    </button>
+  </nav>
 </div>
 
-<!-- Réglages -->
+<!-- Choix de la zone -->
 <div class="voile" id="voile" hidden></div>
-<section class="reglages" id="reglages" role="dialog" aria-modal="true" aria-labelledby="reglages-titre" hidden>
-  <div class="poignee"></div>
+<section class="bas" id="sel-zone" role="dialog" aria-modal="true" aria-labelledby="sel-zone-titre" hidden>
+  <h2 id="sel-zone-titre">Choisir une zone</h2>
+  <input id="zone-recherche" type="search" placeholder="Rechercher un marché ou une commune" autocomplete="off" aria-label="Rechercher une zone">
+  <div class="liste-zones" id="liste-zones"></div>
+</section>
+
+<!-- Réglages -->
+<section class="bas" id="reglages" role="dialog" aria-modal="true" aria-labelledby="reglages-titre" hidden>
   <h2 id="reglages-titre">Réglages</h2>
   <label class="ligne-reglage">
     <span><b>Économiser mes données</b><small>Dagbé lit les réponses avec la voix du téléphone (aucun son à télécharger).</small></span>
@@ -88,7 +166,7 @@
   <button class="ligne-bouton" id="btn-ecrire2" type="button">Écrire ma demande au clavier</button>
   <button class="ligne-bouton" id="btn-installer" type="button" hidden>Installer l'application</button>
   <button class="ligne-bouton fermer" id="btn-fermer" type="button">Fermer</button>
-  <p class="pied">Prix : WFP via HDX HAPI. Chaque chiffre est calculé, jamais inventé par l'IA. La décision de vendre vous appartient.</p>
+  <p class="pied">Prix : WFP via HDX HAPI et contributions des utilisateurs. Chaque chiffre est calculé, jamais inventé par l'IA. La décision de vendre vous appartient.</p>
 </section>
 
 <audio id="lecteur" playsinline></audio>
